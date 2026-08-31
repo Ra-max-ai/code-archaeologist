@@ -42,14 +42,34 @@ export default function Home() {
         </button>
       </div>
 
-      {result && (
-        <div className="mt-8 w-full max-w-md bg-slate-900 rounded-xl p-6">
-          <p className="mb-2">✅ Found <strong>{result.totalFiles}</strong> Java files</p>
-          <ul className="text-sm text-slate-400 max-h-60 overflow-y-auto space-y-1">
+          {result && (
+        <div className="mt-8 w-full max-w-2xl bg-slate-900 rounded-xl p-6">
+          <p className="mb-4">✅ Found <strong>{result.totalFiles}</strong> Java files</p>
+          <div className="space-y-4 max-h-[28rem] overflow-y-auto">
             {result.files?.map((f, i) => (
-              <li key={i}>{f}</li>
+              <div key={i} className="bg-slate-800 rounded-lg p-4">
+                <p className="font-mono text-indigo-400 text-sm mb-2">{f.path}</p>
+
+                {f.classes.length > 0 && (
+                  <p className="text-xs text-slate-400 mb-1">
+                    <span className="text-emerald-400 font-semibold">Classes:</span> {f.classes.join(', ')}
+                  </p>
+                )}
+
+                {f.methods.length > 0 && (
+                  <p className="text-xs text-slate-400 mb-1">
+                    <span className="text-amber-400 font-semibold">Methods:</span> {f.methods.join(', ')}
+                  </p>
+                )}
+
+                {f.imports.length > 0 && (
+                  <p className="text-xs text-slate-400">
+                    <span className="text-sky-400 font-semibold">Imports:</span> {f.imports.join(', ')}
+                  </p>
+                )}
+              </div>
             ))}
-          </ul>
+          </div>
         </div>
       )}
     </main>

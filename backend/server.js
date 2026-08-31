@@ -8,7 +8,6 @@ const fs = require('fs');
 const app = express();
 app.use(cors());
 
-// where uploaded ZIP files get temporarily stored
 const upload = multer({ dest: 'uploads/' });
 
 app.get('/', (req, res) => {
@@ -27,10 +26,17 @@ app.post('/upload', upload.single('repo'), (req, res) => {
     const javaFiles = [];
     walkDir(extractPath, javaFiles);
 
+    // parse each java file to extract classes, methods, imports
+    const parsedFiles = javaFiles.map((filePath) => {
+      const content = fs.readFileSync(filePath, 'utf-8');
+      const relativePath = path.relative(extractPath, filePath);
+      return parseJavaFile(relativePath, content);
+    });
+
     res.json({
       extractId,
       totalFiles: javaFiles.length,
-      files: javaFiles.map(f => path.relative(extractPath, f))
+      files: parsedFiles
     });
   } catch (err) {
     console.error(err);
@@ -38,6 +44,7 @@ app.post('/upload', upload.single('repo'), (req, res) => {
   }
 });
 
+// recursively find all .java files in a folder
 function walkDir(dir, results) {
   const entries = fs.readdirSync(dir, { withFileTypes: true });
   for (const entry of entries) {
@@ -49,6 +56,38 @@ function walkDir(dir, results) {
       results.push(fullPath);
     }
   }
+}
+
+// extract classes, methods, imports from a Java file's text content
+function parseJavaFile(relativePath, content) {
+  const imports = extractMatches(content, /import\s+([\w.]+);/g, 1);
+  const classes = extractMatches(
+    content,
+    /(?:public|private|protected)?\s*class\s+(\w+)/g,
+    1
+  );
+  const methods = extractMatches(
+    content,
+    /(?:public|private|protected)\s+(?:static\s+)?[\w<>\[\]]+\s+(\w+)\s*\([^)]*\)\s*\{/g,
+    1
+  );
+
+  return {
+    path: relativePath,
+    imports,
+    classes,
+    methods
+  };
+}
+
+// helper: run a regex against text and collect one captured group per match
+function extractMatches(text, regex, groupIndex) {
+  const results = [];
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    results.push(match[groupIndex]);
+  }
+  return results;
 }
 
 app.listen(4000, () => {
