@@ -54,6 +54,52 @@ app.post('/upload', upload.single('repo'), (req, res) => {
   }
 });
 
+// NEW: build a dependency graph for a previously uploaded project
+app.get('/dependencies/:extractId', (req, res) => {
+  try {
+    const { extractId } = req.params;
+    const files = projectStore[extractId];
+
+    if (!files) {
+      return res.status(404).json({ error: 'Project not found. Please upload again.' });
+    }
+
+    const graph = buildDependencyGraph(files);
+    res.json({ graph });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to build dependency graph' });
+  }
+});
+
+// NEW: given all parsed files, figure out which classes reference which other classes
+function buildDependencyGraph(files) {
+  // collect every class name in the whole project
+  const allClassNames = files.flatMap((f) => f.classes);
+
+  // for each file, check its content for mentions of OTHER classes
+  return files.map((file) => {
+    const dependsOn = new Set();
+
+    for (const className of allClassNames) {
+      // skip checking a class against itself
+      if (file.classes.includes(className)) continue;
+
+      // use a word-boundary regex so "User" doesn't match inside "UserService"
+      const pattern = new RegExp(`\\b${className}\\b`);
+      if (pattern.test(file.content)) {
+        dependsOn.add(className);
+      }
+    }
+
+    return {
+      file: file.path,
+      classes: file.classes,
+      dependsOn: Array.from(dependsOn)
+    };
+  });
+}
+
 // NEW: ask a question about a previously uploaded project
 app.post('/ask', async (req, res) => {
   try {

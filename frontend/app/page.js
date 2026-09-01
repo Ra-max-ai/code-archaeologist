@@ -10,6 +10,9 @@ export default function Home() {
   const [answer, setAnswer] = useState('');
   const [asking, setAsking] = useState(false);
 
+    const [dependencies, setDependencies] = useState(null);
+  const [loadingDeps, setLoadingDeps] = useState(false);
+
   const handleUpload = async () => {
     if (!file) return;
     setLoading(true);
@@ -39,6 +42,16 @@ export default function Home() {
     const data = await res.json();
     setAnswer(data.answer || data.error || 'Something went wrong.');
     setAsking(false);
+  };
+
+    const handleShowDependencies = async () => {
+    if (!result?.extractId) return;
+    setLoadingDeps(true);
+
+    const res = await fetch(`http://localhost:4000/dependencies/${result.extractId}`);
+    const data = await res.json();
+    setDependencies(data.graph || []);
+    setLoadingDeps(false);
   };
 
   return (
@@ -110,9 +123,40 @@ export default function Home() {
               </button>
             </div>
 
-            {answer && (
+                     {answer && (
               <div className="mt-4 bg-slate-800 rounded-lg p-4 text-sm whitespace-pre-wrap text-slate-200">
                 {answer}
+              </div>
+            )}
+          </div>
+
+          {/* NEW: Dependency graph section */}
+          <div className="mt-6 w-full max-w-2xl bg-slate-900 rounded-xl p-6">
+            <div className="flex items-center justify-between mb-3">
+              <p className="font-semibold">🔗 Dependency Analysis</p>
+              <button
+                onClick={handleShowDependencies}
+                disabled={loadingDeps}
+                className="bg-purple-600 hover:bg-purple-500 disabled:bg-slate-700 px-3 py-1.5 rounded-lg text-sm font-medium transition"
+              >
+                {loadingDeps ? 'Analyzing...' : 'Analyze Dependencies'}
+              </button>
+            </div>
+
+            {dependencies && (
+              <div className="space-y-3 max-h-[20rem] overflow-y-auto">
+                {dependencies.map((d, i) => (
+                  <div key={i} className="bg-slate-800 rounded-lg p-3">
+                    <p className="font-mono text-indigo-400 text-sm mb-1">{d.file}</p>
+                    {d.dependsOn.length > 0 ? (
+                      <p className="text-xs text-slate-400">
+                        <span className="text-red-400 font-semibold">Depends on:</span> {d.dependsOn.join(', ')}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-slate-500">No dependencies detected</p>
+                    )}
+                  </div>
+                ))}
               </div>
             )}
           </div>
