@@ -54,6 +54,84 @@ app.post('/upload', upload.single('repo'), (req, res) => {
   }
 });
 
+// NEW: scan a previously uploaded project for code smells / risks
+app.get('/smells/:extractId', (req, res) => {
+  try {
+    const { extractId } = req.params;
+    const files = projectStore[extractId];
+
+    if (!files) {
+      return res.status(404).json({ error: 'Project not found. Please upload again.' });
+    }
+
+    const findings = files.flatMap((file) => detectSmells(file));
+    res.json({ findings });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to scan for code smells' });
+  }
+});
+
+// NEW: run simple pattern-based checks against one file's content
+function detectSmells(file) {
+  const findings = [];
+  const lines = file.content.split('\n');
+
+  // 1. Hardcoded password/secret
+  lines.forEach((line, i) => {
+    if (/(password|secret|apikey)\s*=\s*["'][^"']+["']/i.test(line)) {
+      findings.push({
+        file: file.path,
+        line: i + 1,
+        type: 'Hardcoded Secret',
+        risk: 'HIGH',
+        message: 'A password, secret, or API key appears to be hardcoded directly in the source code.'
+      });
+    }
+  });
+
+  // 2. Empty catch block (swallowed exceptions)
+  if (/catch\s*\([^)]*\)\s*\{\s*\}/.test(file.content)) {
+    findings.push({
+      file: file.path,
+      line: null,
+      type: 'Empty Catch Block',
+      risk: 'MEDIUM',
+      message: 'An exception is caught but silently ignored, which can hide real errors.'
+    });
+  }
+
+  // 3. Very long method (rough heuristic: more than 40 lines between a method's { and matching-ish next method)
+  const methodStarts = [...file.content.matchAll(/(?:public|private|protected)\s+(?:static\s+)?[\w<>\[\]]+\s+(\w+)\s*\([^)]*\)\s*\{/g)];
+  for (let i = 0; i < methodStarts.length; i++) {
+    const start = methodStarts[i].index;
+    const end = methodStarts[i + 1] ? methodStarts[i + 1].index : file.content.length;
+    const methodLines = file.content.slice(start, end).split('\n').length;
+    if (methodLines > 40) {
+      findings.push({
+        file: file.path,
+        line: null,
+        type: 'Long Method',
+        risk: 'LOW',
+        message: `Method "${methodStarts[i][1]}" is approximately ${methodLines} lines long and may be doing too much.`
+      });
+    }
+  }
+
+  // 4. Missing authorization check pattern (heuristic: "delete" method with no "if" check nearby)
+  if (/void\s+delete\w*\s*\([^)]*\)\s*\{/i.test(file.content) && !/if\s*\(/.test(file.content)) {
+    findings.push({
+      file: file.path,
+      line: null,
+      type: 'Possible Missing Authorization',
+      risk: 'MEDIUM',
+      message: 'A delete method was found with no visible conditional/authorization check in the file.'
+    });
+  }
+
+  return findings;
+}
+
 // NEW: build a dependency graph for a previously uploaded project
 app.get('/dependencies/:extractId', (req, res) => {
   try {

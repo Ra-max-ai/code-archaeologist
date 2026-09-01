@@ -13,6 +13,9 @@ export default function Home() {
     const [dependencies, setDependencies] = useState(null);
   const [loadingDeps, setLoadingDeps] = useState(false);
 
+  const [findings, setFindings] = useState(null);
+  const [loadingSmells, setLoadingSmells] = useState(false);
+
   const handleUpload = async () => {
     if (!file) return;
     setLoading(true);
@@ -52,6 +55,16 @@ export default function Home() {
     const data = await res.json();
     setDependencies(data.graph || []);
     setLoadingDeps(false);
+  };
+
+    const handleScanSmells = async () => {
+    if (!result?.extractId) return;
+    setLoadingSmells(true);
+
+    const res = await fetch(`http://localhost:4000/smells/${result.extractId}`);
+    const data = await res.json();
+    setFindings(data.findings || []);
+    setLoadingSmells(false);
   };
 
   return (
@@ -143,7 +156,7 @@ export default function Home() {
               </button>
             </div>
 
-            {dependencies && (
+                        {dependencies && (
               <div className="space-y-3 max-h-[20rem] overflow-y-auto">
                 {dependencies.map((d, i) => (
                   <div key={i} className="bg-slate-800 rounded-lg p-3">
@@ -158,6 +171,47 @@ export default function Home() {
                   </div>
                 ))}
               </div>
+            )}
+          </div>
+
+          {/* NEW: Code smell / risk detection section */}
+          <div className="mt-6 mb-10 w-full max-w-2xl bg-slate-900 rounded-xl p-6">
+            <div className="flex items-center justify-between mb-3">
+              <p className="font-semibold">🐛 Code Smell & Risk Scan</p>
+              <button
+                onClick={handleScanSmells}
+                disabled={loadingSmells}
+                className="bg-rose-600 hover:bg-rose-500 disabled:bg-slate-700 px-3 py-1.5 rounded-lg text-sm font-medium transition"
+              >
+                {loadingSmells ? 'Scanning...' : 'Scan for Issues'}
+              </button>
+            </div>
+
+            {findings && (
+              findings.length === 0 ? (
+                <p className="text-sm text-emerald-400">✅ No issues detected.</p>
+              ) : (
+                <div className="space-y-3 max-h-[24rem] overflow-y-auto">
+                  {findings.map((f, i) => (
+                    <div key={i} className="bg-slate-800 rounded-lg p-4 border-l-4 border-rose-500">
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="font-semibold text-sm">{f.type}</p>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                          f.risk === 'HIGH' ? 'bg-red-900 text-red-300' :
+                          f.risk === 'MEDIUM' ? 'bg-amber-900 text-amber-300' :
+                          'bg-slate-700 text-slate-300'
+                        }`}>
+                          {f.risk}
+                        </span>
+                      </div>
+                      <p className="font-mono text-indigo-400 text-xs mb-1">
+                        {f.file}{f.line ? `:${f.line}` : ''}
+                      </p>
+                      <p className="text-xs text-slate-400">{f.message}</p>
+                    </div>
+                  ))}
+                </div>
+              )
             )}
           </div>
         </>
